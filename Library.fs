@@ -31,7 +31,7 @@ module internal Printable =
 
     type Printable = Map<ColumnName, Column>
 
-    let private getColumns (s: seq<'T>) =
+    let private getColumns (s: seq<'T>): PropertyInfo[] =
         s
         |> Seq.tryHead
         |> fun op ->
@@ -39,7 +39,7 @@ module internal Printable =
             | Some v -> v.GetType().GetProperties()
             | None -> [||]
 
-    let private handleColumn (s: seq<'T>) (col: PropertyInfo) =
+    let private handleColumn (s: seq<'T>) (col: PropertyInfo): ColumnName * Column =
         let values =    
             s
             |> Seq.map (fun row -> col.GetValue(row))
@@ -70,12 +70,15 @@ module internal Printable =
         |> Map
 
 type Printer<'T>(s: seq<'T>) =
+    let length = s |> Seq.length
     let printable = getPrintable s
 
     let mutable columns: ColumnName[] =
         printable.Keys |> Array.ofSeq
 
     member internal _.Printable = printable
+
+    member internal _.Length = length
 
     member _.Columns
         with internal get () = columns
@@ -84,7 +87,7 @@ type Printer<'T>(s: seq<'T>) =
     member private p.padR (col: ColumnName) (v: string) =
         p.Printable[col].Width - v.Length - 1
 
-    member p.printFields =
+    member private p.printFields =
         // Print Field Names
         p.Columns
         |> Array.iter (fun x ->
@@ -108,8 +111,6 @@ type Printer<'T>(s: seq<'T>) =
             printf $"{String(' ', p.padR x strBracketed)}")
 
         printfn ""
-
-        p
 
     member private p.printCell (rowIx: int) (col: ColumnName) =
         let v = p.Printable[col].Values[rowIx]
@@ -144,16 +145,16 @@ type Printer<'T>(s: seq<'T>) =
         printfn ""
 
     member private p.printValues =
-        p.Printable[p.Columns[0]].Values |> Array.iteri (fun i _ -> p.printRow i)
-        p
+        [|0 .. p.Length - 1|]
+        |> Array.iteri (fun i _ -> p.printRow i)
 
     static member print(p: Printer<'T>) : unit =
-        p.printFields |> ignore
-        p.printValues |> ignore
+        p.printFields
+        p.printValues
 
     static member print(s: seq<'T>) = Printer s |> Printer.print
 
-    static member withColumns (cols: string seq) (p: Printer<'T>) =
+    static member withColumns (cols: string seq) (p: Printer<'T>): Printer<'T> =
         let colAr =
             cols
             |> Seq.map ColumnName
