@@ -3,17 +3,17 @@
 open System
 
 module internal Console =
-    let private log =
-        fun color s ->
-            Console.ForegroundColor <- color
-            printf "%s" s
-            Console.ResetColor()
+    let private log (color: ConsoleColor) (s: string) =
+        Console.ForegroundColor <- color
+        printf "%s" s
+        Console.ResetColor()
 
     let datetime = log ConsoleColor.Blue
     let number = log ConsoleColor.Green
     let bool = log ConsoleColor.White
     let string = log ConsoleColor.Yellow
     let typeName = log ConsoleColor.Cyan
+    let generic s  = printf $"{s}"
 
 [<AutoOpen>]
 module internal Printable =
@@ -21,6 +21,9 @@ module internal Printable =
 
     type ColumnName =
         ColumnName of string
+        with member c.stringify () =
+                match c with
+                | ColumnName s -> s
 
     type Column =
         {
@@ -47,8 +50,8 @@ module internal Printable =
 
         let maxValueWidth =
             values
-            |> Array.map (fun v -> v.ToString().Length)
-            |> Array.max
+            |> Array.maxBy (fun v -> v.ToString().Length)
+            |> fun x -> x.ToString().Length
 
         let typeName = col.PropertyType.Name
 
@@ -63,41 +66,71 @@ module internal Printable =
                                 Width = width
                             }
 
-    let getPrintable (s: seq<'T>): Printable =
-        s
+    let getPrintable (pageSize: int) (page: int) (s: seq<'T>): Printable =
+        let range = 
+            s
+            |> Seq.skip ((page - 1) * pageSize)
+            |> Seq.truncate pageSize
+        range
         |> getColumns
-        |> Array.map (handleColumn s)
+        |> Array.map (handleColumn range)
         |> Map
 
 type Printer<'T>(s: seq<'T>) =
     let length = s |> Seq.length
-    let printable = getPrintable s
+
+    let mutable pageSize: int = 50
+
+    let mutable page = 1
+
+    let mutable lastPage = int (Math.Ceiling (float length / float pageSize))
+
+    let mutable printable = getPrintable pageSize page s
 
     let mutable columns: ColumnName[] =
         printable.Keys |> Array.ofSeq
 
-    member internal _.Printable = printable
+    member private _.Printable
+        with  get () = printable
+        and set (value: Printable) = printable <- value
 
-    member internal _.Length = length
+    member private p.recalculatePrintable () =
+        p.Printable <- getPrintable pageSize page s
 
-    member _.Columns
-        with internal get () = columns
-        and internal set (value) = columns <- value
+    member private _.Length = length
 
-    member private p.padR (col: ColumnName) (v: string) =
+    member private _.Columns
+        with get () = columns
+        and set (value: ColumnName []) = columns <- value
+
+    member private p.PageSize
+        with get () = pageSize
+        and set (value: int) =
+            pageSize <- value
+            lastPage <- int (Math.Ceiling (float length / float pageSize))
+            p.recalculatePrintable ()
+
+    member private p.Page
+        with get () = page
+        and set (value: int) =
+            page <- value
+            p.recalculatePrintable ()
+
+    member private _.LastPage
+        with get () = lastPage
+        and set (value: int) =
+            lastPage <- value
+
+    member private p.padR (col: ColumnName) (v: string): int =
         p.Printable[col].Width - v.Length - 1
 
     member private p.printFields =
         // Print Field Names
         p.Columns
         |> Array.iter (fun x ->
-            let colNameStr =
-                match x with
-                | ColumnName s -> s
-
-            let strr = String(' ', 1) + colNameStr + String(' ', p.padR x colNameStr)
-            printf $"{strr}")
-
+            let cellStr = String(' ', 1) + x.stringify() + String(' ', p.padR x (x.stringify()))
+            printf $"{cellStr}"
+        )
         printfn ""
 
         // Print Field Types
@@ -108,8 +141,8 @@ type Printer<'T>(s: seq<'T>) =
             printf " <"
             sprintf $"{typeName}" |> Console.typeName
             printf ">"
-            printf $"{String(' ', p.padR x strBracketed)}")
-
+            printf $"{String(' ', p.padR x strBracketed)}"
+        )
         printfn ""
 
     member private p.printCell (rowIx: int) (col: ColumnName) =
@@ -120,11 +153,11 @@ type Printer<'T>(s: seq<'T>) =
         p.printValue v
         printf $"{String(' ', padR).ToString()}"
 
-    member private p.printValue(v: obj) =
-        let strr = string v
+    member private _.printValue(v: obj) =
+        let str = string v
 
         match v with
-        | :? string -> Console.string strr
+        | :? string -> Console.string str
         | :? int8
         | :? int16
         | :? int32
@@ -134,26 +167,39 @@ type Printer<'T>(s: seq<'T>) =
         | :? uint32
         | :? uint64
         | :? float
-        | :? single -> Console.number strr
-        | :? bool -> Console.bool strr
+        | :? single -> Console.number str
+        | :? bool -> Console.bool str
         | :? DateTime
-        | :? TimeSpan -> Console.datetime strr
-        | _ -> printf $"{strr}"
+        | :? DateOnly
+        | :? TimeSpan -> Console.datetime str
+        | _ -> Console.generic str
 
     member private p.printRow(rowIx: int) =
         p.Columns |> Array.iter (p.printCell rowIx)
         printfn ""
 
     member private p.printValues =
-        [|0 .. p.Length - 1|]
+        [|0 .. (p.Printable[p.Columns[0]].Values|>Array.length) - 1|]
         |> Array.iteri (fun i _ -> p.printRow i)
 
-    static member print(p: Printer<'T>) : unit =
+    member private p.printInfo =
+        let start = (p.Page - 1) * pageSize + 1
+        let terminus = Math.Min(p.Page * pageSize, p.Length)
+        printfn $"Displaying {start}-{terminus} of {p.Length} items."
+
+    /// Prints the first page.
+    static member print(p: Printer<'T>) : Printer<'T> =
         p.printFields
         p.printValues
+        p.printInfo
+        p
 
-    static member print(s: seq<'T>) = Printer s |> Printer.print
+    /// Prints the first page.
+    static member print(s: seq<'T>) =
+        Printer s
+        |> Printer.print
 
+    /// Determines which fields to diaplya and the order thereof.
     static member withColumns (cols: string seq) (p: Printer<'T>): Printer<'T> =
         let colAr =
             cols
@@ -162,8 +208,35 @@ type Printer<'T>(s: seq<'T>) =
 
         let diff = set colAr - set p.Columns
 
-        if diff.Count <> 0 then
+        if diff.Count > 0 then
             failwith $"The following fields are not present in the array provided: {diff}"
         else
             p.Columns <- colAr
             p
+
+    /// Sets how many items to display per page.
+    static member withPageSize (pageSize: int) (p: Printer<'T>): Printer<'T> =
+            p.PageSize <- pageSize
+            p
+
+    /// Navigates to the next page if it exists.
+    /// If not, it displays the last page.
+    static member nextPage (p: Printer<'T>) =
+        p.Page <- Math.Min(p.Page + 1, p.LastPage)
+        p
+        |>Printer.print
+
+    member p.NextPage () =
+        p
+        |> Printer.nextPage
+
+    /// Navigates to the previous page if it exists.
+    /// If not, it displays the first page.
+    static member previousPage (p: Printer<'T>) =
+        p.Page <- Math.Max (p.Page - 1, 1)
+        p
+        |>Printer.print
+
+    member p.PreviousPage () =
+        p
+        |> Printer.previousPage

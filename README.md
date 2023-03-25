@@ -51,7 +51,8 @@ typedList |> Printer.print
  <Int32>  <Int32>  <String> 
  32       175      Stanley  
  27       175      Akira    
- 35       200      Andrei
+ 35       200      Andrei   
+Displaying 1-3 of 3 items.
  ```
 
 ## Selecting Columns
@@ -70,7 +71,8 @@ typedList
  <String>  <Int32> 
  Stanley   175     
  Akira     175     
- Andrei    200 
+ Andrei    200     
+Displaying 1-3 of 3 items.
 ```
 
 ## Ordering columns
@@ -88,41 +90,60 @@ typedList
  <String>  <Int32>  <Int32> 
  Stanley   32       175     
  Akira     27       175     
- Andrei    35       200 
+ Andrei    35       200     
+Displaying 1-3 of 3 items.
 ```
 
-## Anonymous Records
+## Pagination
+
+### Page Size
 ```fsharp
-open System
-
-let anonRecords =
-    [|
-        for i in 1. .. 10. ->
-            {|
-                Number = i
-                IsEven = i % 2. = 0.
-                Log = Math.Log i
-            |}
-    |]
-
-
-anonRecords
-|> Printer
-|> Printer.withColumns [ "Number"; "IsEven"; "Log" ]
-|> Printer.print
+let printer = 
+    typedList
+    |> List.replicate 25
+    |> List.concat
+    |> Printer
+    |> Printer.withPageSize 10
 ```
 
 ```
- Number    IsEven     Log                
- <Double>  <Boolean>  <Double>           
- 1         False      0                  
- 2         True       0.6931471805599453 
- 3         False      1.0986122886681098 
- 4         True       1.3862943611198906 
- 5         False      1.6094379124341003 
- 6         True       1.791759469228055  
- 7         False      1.9459101490553132 
- 8         True       2.0794415416798357 
- 9         False      2.1972245773362196 
- 10        True       2.302585092994046  
+ Age      Height   Name     
+ <Int32>  <Int32>  <String> 
+ 32       175      Stanley  
+ 27       175      Akira    
+ 35       200      Andrei   
+ 32       175      Stanley  
+ 27       175      Akira    
+ 35       200      Andrei   
+ 32       175      Stanley  
+ 27       175      Akira    
+ 35       200      Andrei   
+ 32       175      Stanley  
+Displaying 1-10 of 75 items.
+```
+
+### Navigation
+```fsharp
+printer
+|>Printer.nextPage
+
+// Alternative
+
+printer.NextPage()
+```
+
+```
+ Age      Height   Name     
+ <Int32>  <Int32>  <String> 
+ 27       175      Akira    
+ 35       200      Andrei   
+ 32       175      Stanley  
+ 27       175      Akira    
+ 35       200      Andrei   
+ 32       175      Stanley  
+ 27       175      Akira    
+ 35       200      Andrei   
+ 32       175      Stanley  
+ 27       175      Akira    
+Displaying 11-20 of 75 items.
 ```
