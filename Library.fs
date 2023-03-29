@@ -188,11 +188,14 @@ type Printer<'T>(s: seq<'T>) =
         printfn $"Displaying {start}-{terminus} of {p.Length} items."
 
     /// Prints the first page.
-    static member print(p: Printer<'T>) : Printer<'T> =
-        p.printFields
-        p.printValues
-        p.printInfo
-        p
+    static member print(p: Printer<'T>) =
+        // TODO: Locking by `GetCursorPosition` is hacky?
+        lock Console.GetCursorPosition (fun _ ->
+            p.printFields
+            p.printValues
+            p.printInfo
+            p
+        )
 
     /// Prints the first page.
     static member print(s: seq<'T>) =
@@ -219,24 +222,28 @@ type Printer<'T>(s: seq<'T>) =
             p.PageSize <- pageSize
             p
 
-    /// Navigates to the next page if it exists.
+    /// Navigates to the next page, if it exists.
     /// If not, it displays the last page.
     static member nextPage (p: Printer<'T>) =
         p.Page <- Math.Min(p.Page + 1, p.LastPage)
         p
         |>Printer.print
 
+    /// Navigates to the next page, if it exists.
+    /// If not, it displays the last page.
     member p.NextPage () =
         p
         |> Printer.nextPage
 
-    /// Navigates to the previous page if it exists.
+    /// Navigates to the previous page, if it exists.
     /// If not, it displays the first page.
     static member previousPage (p: Printer<'T>) =
         p.Page <- Math.Max (p.Page - 1, 1)
         p
         |>Printer.print
 
+    /// Navigates to the previous page, if it exists.
+    /// If not, it displays the first page.
     member p.PreviousPage () =
         p
         |> Printer.previousPage

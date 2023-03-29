@@ -1,5 +1,5 @@
 # About
-This package provides a colored and tabularized output for sequences of named or anonymous records.
+This package provides a colored and tabularized thred-safe output for sequences of named or anonymous records.
 
 (Colors not visible in markdown.)
 
@@ -7,13 +7,13 @@ This package provides a colored and tabularized output for sequences of named or
 
 ## FSI
 ```fsharp
-#r "nuget: SeqPrinter"
+#r "nuget: SeqPrinter, 0.4.0"
 open SeqPrinter
 ```
 
 ## .NET CLI
 ```bash
-dotnet add package SeqPrinter
+dotnet add package SeqPrinter --version 0.4.0
 ```
 
 
