@@ -1,5 +1,5 @@
 # About
-This package provides a colored and tabularized thred-safe output for sequences of named or anonymous records.
+This package provides a colored and tabularized thread-safe output for sequences of named or anonymous records.
 
 (Colors not visible in markdown.)
 
